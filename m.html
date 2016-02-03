@@ -1,0 +1,337 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="viewport" content="width=device-width, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes" /> 
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="apple-touch-icon" href="m_/images/apple-touch-icon.png">
+<link rel="apple-touch-startup-image" href="m_/images/apple-touch-startup-image.png">
+<link rel="stylesheet" href="m_/sw/spinningwheel.css" type="text/css" media="all" />
+<link media="only screen and (max-device-width: 480px)" href="m_/small.css" type= "text/css" rel="stylesheet">
+<link media="only screen and (min-device-width: 481px) and (max-device-width: 1024px)" href="m_/medium.css" type="text/css" rel="stylesheet">
+<link media="screen and (min-device-width: 1025px)" href="m_/large.css" type="text/css" rel="stylesheet">
+<!--[if IE]>
+<link media="all" href="m_/explorer.css" type="text/css" rel="stylesheet"
+/>
+<![endif]-->
+<title></title>
+<script type="text/javascript" src="m_/sw/spinningwheel-min.js?v=1.4"></script>
+<script type="text/javascript" src="m_/xhconn.js"></script>
+<script type="text/javascript" src="m_/json2.js"></script>
+</head>
+<body onload="GetCameras()">
+<script type="text/javascript">
+function OpacityById(id, whether, opacity)
+{
+	return document.getElementById(id).style.opacity =
+		whether ? 1.0 : opacity;
+}
+function DisplayById(id, whether)
+{
+	return document.getElementById(id).style.display =
+		whether ? "block" : "none";
+}
+function CamerasParser(t)
+{ 
+	var r = JSON.parse(t.responseText);
+	var server = r.servers[0];
+	if (window.navigator.standalone)
+	{
+		DisplayById("stand-alone-header", true);
+		DisplayById("stand-alone-title", true);
+		document.getElementById("stand-alone-title").innerText =
+			server.product.name + " " +
+			server.product.version + " " +
+			(server.name ? server.name : server.address);
+	}
+	else
+	{
+		document.title = server.product.name + " " +
+			server.product.version + " " +
+			(server.name ? server.name : server.address);
+	}
+	return server.cameras;
+}
+
+<!-- recorded ------------------------------->
+function Whether(b)
+{
+    return b ? '&radic;' : '&times;';
+}
+function AddCamera(camera) {
+	var list = document.getElementsByTagName('ul')[0];
+	var cameraDiv = document.createElement('li');
+	var cameraName = camera.name ? camera.name : ("Camera " + camera.id);
+	var permitted = camera.permissions.live || camera.permissions.recorded;
+	cameraDiv.innerHTML +=
+		'<img src="m_/images/Milky/info.png" height="17" ' +
+		'onclick="alert(\'' + 
+		'Id: ' + camera.id + '\\n' +
+		'Name: ' + camera.name + '\\n' +
+		'State: ' + camera.state + '\\n' +
+		'Live: ' + Whether(camera.permissions.live) + '\\n' +
+		'Clip: ' + Whether(camera.permissions.recorded) + '\\n' +
+		'Home: ' + Whether(camera.ptz != undefined && camera.ptz.presets && camera.ptz.presets > 0) + '\\n' +
+		'Pan: ' + Whether(camera.ptz != undefined && camera.ptz.pan) + '\\n' +
+		'Tilt: ' + Whether(camera.ptz != undefined && camera.ptz.pan) + '\\n' +
+		'Zoom: ' + Whether(camera.ptz != undefined && camera.ptz.pan) +
+		'\')"/>';
+	cameraDiv.innerHTML += '<div style="width: 5%;float: right">&nbsp;</div>';
+	if (!permitted)
+	{
+		cameraDiv.innerHTML +=
+			'<img src="m_/images/Milky/prohibited.png" height="17" ' +
+			'onclick="alert(\'Access denied to ' + cameraName + '\')"/>';
+		cameraDiv.innerHTML += '<div style="width: 5%;float: right">&nbsp;</div>';
+	}
+
+	if (camera.state === 'online')
+	{
+		cameraDiv.innerHTML += (!permitted ? cameraName :
+			('<a onclick="live(' + camera.id + ');return false">' +
+			 cameraName + '</a>'));
+	}
+	else
+	{
+		cameraDiv.innerHTML += cameraName +
+			'<img src="m_/images/Milky/attention.png" height="17" ' +
+			'onclick="alert(\'' + cameraName + ' has ' +
+			(camera.state === 'failed' ? 'failed' : 'been disabled')  + '\')"/>';
+	}
+	cameraDiv.innerHTML += '<div style="width: 5%;float: right">&nbsp;</div>';
+	list.appendChild(cameraDiv);
+}
+var cameras;
+var camera; // Current, selected camera
+var pickerCamerasParser = function(t)
+{
+	cameras = CamerasParser(t);
+	for (i = 0; i < cameras.length; ++i)
+	{
+		AddCamera(cameras[i]);
+	}
+};
+function GetCameras()
+{
+	ajaxConn.connect("/cameras", "GET", "accept=application/json",
+			pickerCamerasParser);
+}
+
+function live(id)
+{
+	DisplayById('recorded', false);
+	DisplayById('select', false);
+
+	camera = cameras[id - 1];
+	document.getElementById("live-header-name").innerText = camera.name ? camera.name : id;
+	document.getElementById('live-img').src = "/cameras/" + id + "/media?width=300&height=16";
+	OpacityById("home", camera.ptz && camera.ptz.presets > 0, 0.2);
+	OpacityById("left", camera.ptz && camera.ptz.pan, 0.2);
+	OpacityById("right", camera.ptz && camera.ptz.pan, 0.2);
+	OpacityById("up", camera.ptz && camera.ptz.tilt, 0.2);
+	OpacityById("down", camera.ptz && camera.ptz.tilt, 0.2);
+	OpacityById("in", camera.ptz && camera.ptz.zoom, 0.2);
+	OpacityById("out", camera.ptz && camera.ptz.zoom, 0.2);
+	DisplayById('live', true);
+}
+
+function recorded()
+{
+	DisplayById('live', false);
+	DisplayById('select', false);
+
+	document.getElementById("recorded-header-name").innerText = camera.name ? camera.name : id;
+	DisplayById('recorded', true);
+	openDateTime();
+}
+
+function select()
+{
+	DisplayById('recorded', false);
+	DisplayById('live', false);
+	DisplayById('select', true);
+}
+
+<!-- live ------------------------------->
+function PtzStop()
+{
+	ajaxConn.connect("/cameras/1/position?x=0&y=0&z=0", "PUT", "", fnWhenDone);
+}
+
+<!-- recorded ------------------------------->
+function openDateTime() {
+	var now = new Date();
+	var minutes = { };
+	var hours = { };
+	var days = { };
+	var years = { };
+	var months = { 1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
+		7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec' };
+	
+	for( var i = 1; i < 32; i += 1 ) {
+		days[i] = i;
+	}
+
+	for( var i = now.getFullYear()-3; i < now.getFullYear()+2; i += 1 ) {
+		years[i] = i;
+	}
+
+	for( var i = 0; i < 24; i += 1 ) {
+		hours[i] = i;
+	}
+
+	for( var i = 0; i < 60; i += 1 ) {
+		minutes[i] = (i <= 9 ? ("0" + i) : i);
+	}
+
+	var today = new Date();
+	SpinningWheel.addSlot(years, 'right', today.getUTCFullYear());
+	SpinningWheel.addSlot(months, '', today.getUTCMonth() + 1);
+	SpinningWheel.addSlot(days, 'right', today.getUTCDate());
+	SpinningWheel.addSlot({ separator: '&nbsp;' }, 'readonly shrink');
+	SpinningWheel.addSlot(hours, 'right', today.getUTCHours());
+	SpinningWheel.addSlot(minutes, 'right', today.getUTCMinutes());
+	
+	SpinningWheel.setCancelAction(cancel);
+	SpinningWheel.setDoneAction(done);
+	
+	SpinningWheel.open();
+}
+
+function done() {
+	var results = SpinningWheel.getSelectedValues();
+	var src = "/cameras/" + camera.id + "/media?width=300&height=16";
+	src += "&start=" +
+		results.keys[0] + "-" +
+		(results.keys[1] <= 9 ? ("0" + results.keys[1]) : results.keys[1]) + "-" +
+		(results.keys[2] <= 9 ? ("0" + results.keys[2]) : results.keys[2]) + "T" +
+		(results.keys[4] <= 9 ? ("0" + results.keys[4]) : results.keys[4]) + ":" +
+		results.values[5] + ":00Z";
+	src += "&stop=" +
+		(parseInt(results.keys[0]) + 1) + "-" +
+		(results.keys[1] <= 9 ? ("0" + results.keys[1]) : results.keys[1]) + "-" +
+		(results.keys[2] <= 9 ? ("0" + results.keys[2]) : results.keys[2]) + "T" +
+		(results.keys[4] <= 9 ? ("0" + results.keys[4]) : results.keys[4]) + ":" +
+		results.values[5] + ":00Z";
+	document.getElementById('recorded-img').src = src;
+}
+
+function cancel() {
+	// Do nothing.
+}
+
+window.addEventListener('load', function(){ setTimeout(function(){ window.scrollTo(0,0); }, 100); }, true);
+
+</script>
+<div id="stand-alone-header" style="display:none">
+	<div id="stand-alone-title">&nbsp;</div>
+</div>
+<div id="select">
+	<div id="select-header" class="header">Cameras</div>
+	<div id="camera-list-content">
+		<div id="list"><ul></ul></div>
+	</div>
+</div>
+
+<div id="live" style="display:none">
+	<div id="live-header" class="header">
+		<img src="m_/images/Milky/open.png" height="25" onclick="select()" class="left-header-img"/>
+		<a onlick="live(camera.id)"><div id="live-header-name" class="header-name">&nbsp;</div></a>
+		<img src="m_/images/Milky/clip.png" height="25" onclick="recorded()" class="right-header-img"/>
+	</div>
+	<div id="content">
+	    <div id="image">
+		<img src="m_/images/1x1.png" width="300" height="225" id="live-img"/>
+	    </div>
+	    <div id="buttons-space"></div>
+	    <div id="ptz-buttons">
+		<div class="pt-button" id="home">
+			<img src="m_/images/Milky/home.png" height="33"
+				ontouchstart='ajaxConn.connect("/cameras/" + camera.id + "/position/1", "PUT", "", fnWhenDone)'
+			/>
+		</div>
+
+		<div class="pt-button" id="up">
+			<img src="m_/images/Milky/up.png" height="35"
+				ontouchstart='ajaxConn.connect("/cameras/" + camera.id + "/position?y=-500", "PUT", "", fnWhenDone)'
+				ontouchend='PtzStop()'
+			/>
+		</div>
+		<div class="pt-button" id="down">
+			<img src="m_/images/Milky/down.png" height="35"
+				ontouchstart='ajaxConn.connect("/cameras/" + camera.id + "/position?y=500", "PUT", "", fnWhenDone)'
+				ontouchend='PtzStop()'
+			/>
+		</div>
+
+		<div class="pt-button" id="left">
+			<img src="m_/images/Milky/left.png" height="35"
+				ontouchstart='ajaxConn.connect("/cameras/" + camera.id + "/position?x=-500", "PUT", "", fnWhenDone)'
+				ontouchend='PtzStop()'
+			/>
+		</div>
+		<div class="pt-button" id="right">
+			<img src="m_/images/Milky/right.png" height="35"
+				ontouchstart='ajaxConn.connect("/cameras/" + camera.id + "/position?x=500", "PUT", "", fnWhenDone)'
+				ontouchend='PtzStop()'
+			/>
+		</div>
+
+		<div class="z-button" id="in">
+			<img src="m_/images/Milky/in.png" height="40"
+				ontouchstart='ajaxConn.connect("/cameras/" + camera.id + "/position?z=500", "PUT", "", fnWhenDone)'
+				ontouchend='PtzStop()'
+			/>
+		</div>
+		<div class="z-button" id="out">
+			<img src="m_/images/Milky/out.png" height="40"
+				ontouchstart='ajaxConn.connect("/cameras/" + camera.id + "/position?z=-500", "PUT", "", fnWhenDone)'
+				ontouchend='PtzStop()'
+			/>
+		</div>
+	    </div>
+	</div>
+</div>
+
+<div id="recorded" style="display:none">
+	<div id="recorded-header" class="header">
+		<img src="m_/images/Milky/open.png" height="25" onclick="select()" class="left-header-img"/>
+		<div id="recorded-header-name" class="header-name">&nbsp;</div>
+		<img src="m_/images/Milky/clip.png" height="25" onclick="openDateTime()" class="right-header-img"/>
+		<img src="m_/images/Milky/live.png" height="25" onclick="live(camera.id)" class="right-header-img"/>
+	</div>
+	<div id="content">
+	    <div id="image">
+		<img src="m_/images/1x1.png" width="300" height="225" id="recorded-img"/>
+	    </div>
+	    <div id="buttons-space"></div>
+	    <div id="vcr-buttons">
+		<div class="vcr-button">
+			<img src="m_/images/Milky/first.png" height="35" onclick='ajaxConn.connect(
+				"/cameras/" + camera.id + "/media", "GET", "action=first", fnWhenDone)'/>
+			</div>
+		<div class="vcr-button">
+			<img src="m_/images/Milky/back.png" height="35" onclick='ajaxConn.connect(
+				"/cameras/" + camera.id + "/media", "GET", "action=back", fnWhenDone)'/>
+		</div>
+		<div class="vcr-button">
+			<img src="m_/images/Milky/play.png" height="35" onclick='ajaxConn.connect(
+				"/cameras/" + camera.id + "/media", "GET", "action=play", fnWhenDone)'/>
+		</div>
+		<div class="vcr-button">
+			<img src="m_/images/Milky/pause.png" height="35" onclick='ajaxConn.connect(
+				"/cameras/" + camera.id + "/media", "GET", "action=pause", fnWhenDone)'/>
+		</div>
+		<div class="vcr-button">
+			<img src="m_/images/Milky/forward.png" height="35" onclick='ajaxConn.connect(
+				"/cameras/" + camera.id + "/media", "GET", "action=forward", fnWhenDone)'/>
+		</div>
+		<div class="vcr-button">
+			<img src="m_/images/Milky/last.png" height="35" onclick='ajaxConn.connect(
+				"/cameras/" + camera.id + "/media", "GET", "action=last", fnWhenDone)'/>
+		</div>
+	    </div>
+	</div>
+</div>
+</body>
+</html>
